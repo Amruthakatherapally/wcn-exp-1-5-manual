@@ -1,0 +1,94 @@
+clc; clear; close all;
+% PARAMETERS
+R = 10000; % Cell radius (in meters)
+N = 7; % Reuse factor
+numCells = 20; % Total number of hexagonal cells
+usersPerCell = 5; % Number of users per cell
+colors = lines(N); % Color for each frequency
+% Reuse Distance Calculation
+D = R * sqrt(3 * N);
+fprintf('Reuse Distance (D) = %.2f meters\n', D);
+% HEXAGON SPACING
+dx = 3/2 * R;
+dy = sqrt(3) * R;
+% Hexagonal layout using axial coordinates
+cellCenters = [];
+k = 0;
+range = ceil(sqrt(numCells)); % grid range for required cells
+%Axial Coordinates: (q, r) Generation- Each cell is placed using axial coordinates, which allows clean hexagonal tiling and enables mathematical frequency reuse mapping.
+for q = -range:range % Each (q, r) is a hexagonal cell location in axial coordinates.
+for r = max(-range, -q-range):min(range, -q+range)
+if k >= numCells
+break;
+end
+x = R * sqrt(3) * (q + r/2);
+y = R * 3/2 * r;
+cellCenters = [cellCenters; x, y, q, r]; % store axial coords too
+k = k + 1;
+end
+%
+end
+
+% Frequency assignment using spatial reuse pattern
+% Standard shift pattern for N=7 is (i, j) = (2, 1) or (1, 2)
+iShift = 2;
+jShift = 1;
+
+% Assign frequency to each cell based on shift pattern
+freqAssign = zeros(numCells, 1);
+for idx = 1:numCells
+q = cellCenters(idx, 3); % axial coord q
+r = cellCenters(idx, 4); % axial coord r
+% Spatial reuse formula (uses iShift, jShift)
+freqIndex = mod(iShift * q + jShift * r, N) + 1;
+freqAssign(idx) = freqIndex;
+end
+
+% FUNCTION: Draw a hexagon centered at (cx, cy)
+drawHex = @(cx, cy) [cx + R * cos((0:6)*pi/3); cy + R * sin((0:6)*pi/3)];
+
+% Initialize user storage
+userLocations = [];
+userFrequencies = [];
+userCellIndices = [];
+
+% PLOT
+figure; hold on; axis equal;
+title(sprintf('Hexagonal Cell Layout with Frequency Reuse N = %d', N));
+xlabel('X (meters)'); ylabel('Y (meters)');
+
+for i = 1:numCells
+cx = cellCenters(i,1);
+cy = cellCenters(i,2);
+freq = freqAssign(i);
+
+% Draw hexagon
+hex = drawHex(cx, cy);
+fill(hex(1,:), hex(2,:), colors(freq,:), 'EdgeColor', 'k', 'FaceAlpha', 0.4);
+text(cx, cy, sprintf('C%d\nF%d', i, freq), ...
+'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'FontSize', 8);
+
+% Generate users inside hexagon
+for u = 1:usersPerCell
+while true
+r_user = R * sqrt(rand); % uniform distribution
+theta = 2 * pi * rand;
+x = cx + r_user * cos(theta);
+y = cy + r_user * sin(theta);
+if inpolygon(x, y, hex(1,:), hex(2,:))
+userLocations = [userLocations; x, y];
+userFrequencies = [userFrequencies; freq];
+userCellIndices = [userCellIndices; i];
+scatter(x, y, 30, colors(freq,:), 'filled');
+break;
+end
+end
+end
+end
+
+% Display user table
+T = table(userCellIndices, userFrequencies, userLocations(:,1), userLocations(:,2), 'VariableNames', {'CellIndex', 'Frequency', 'X', 'Y'});
+disp(T);
+
+legend(arrayfun(@(f) ['F' num2str(f)], 1:N, 'UniformOutput', false));
+grid on;
